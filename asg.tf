@@ -1,6 +1,11 @@
+
+
+
 provider "aws" {
   region     = "us-east-2"
 }
+
+
 
 ###asg
 resource "aws_launch_configuration" "as_conf" {
@@ -53,75 +58,35 @@ resource "aws_elb" "elb_tf" {
     unhealthy_threshold = 2
     timeout = 5
     interval = 30
-    target = "HTTP:8080/index.html"
+    target = "HTTP:80/index.html"
   }
   listener {
     lb_port = 80
     lb_protocol = "http"
-    instance_port = "8080"
+    instance_port = "80"
     instance_protocol = "http"
   }
-  listener {
-    instance_port      = 8080
-    instance_protocol  = "http"
-    lb_port            = 443
-    lb_protocol        = "https"
-    ssl_certificate_id = "arn:aws:acm:us-east-2:990071541552:certificate/c774216a-5a4d-4678-a841-072ad9c7a11b"
-  }
-instances                   = ["${aws_instance.elb.id}"]
-  cross_zone_load_balancing   = true
-  idle_timeout                = 400
-  connection_draining         = true
-  connection_draining_timeout = 400
-
-  tags = {
-    Name = "as_conf-terraform-elb"
-  }
 }
 
-
-resource "aws_lb_ssl_negotiation_policy" "elb_tf" {
-  name          = "cipher-p"
-  load_balancer = "${aws_elb.elb_tf.id}"
-  lb_port       = 443
-
-  attribute {
-    name  = "Protocol-TLSv1"
-    value = "false"
-  }
-
-  attribute {
-    name  = "Protocol-TLSv1.1"
-    value = "false"
-  }
-
-  attribute {
-    name  = "Protocol-TLSv1.2"
-    value = "true"
-  }
-
-  attribute {
-    name  = "Server-Defined-Cipher-Order"
-    value = "true"
-  }
-
-  attribute {
-    name  = "ECDHE-RSA-AES128-GCM-SHA256"
-    value = "true"
-  }
-
-  attribute {
-    name  = "AES128-GCM-SHA256"
-    value = "true"
-  }
-
-  attribute {
-    name  = "EDH-RSA-DES-CBC3-SHA"
-    value = "false"
-  }
-}
 # Create a new load balancer attachment
 resource "aws_autoscaling_attachment" "asg_attachment_bar" {
   autoscaling_group_name = "${aws_autoscaling_group.launch_confg.id}"
   elb                    = "${aws_elb.elb_tf.id}"
+}
+
+
+####r53
+resource "aws_route53_zone" "terraform-sairam" {
+  name   = "sairam.cf"
+}
+resource "aws_route53_record" "terraform-asg-example-lb-tf" {
+  zone_id = "${aws_route53_zone.terraform-sairam.zone_id}"
+  name    = "sairam.cf"
+  type    = "A"
+
+  alias {
+    name                   = "${aws_elb.elb_tf.dns_name}"
+    zone_id                = "${aws_elb.elb_tf.zone_id}"
+    evaluate_target_health = true
+  }
 }
